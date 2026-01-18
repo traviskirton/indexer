@@ -1,0 +1,24 @@
+{
+  "name": "indexer",
+  "version": "1.0.0",
+  "description": "Search index builder for content entities",
+  "type": "module",
+  "scripts": {
+    "build": "tsx scripts/build-search.ts",
+    "test": "vitest",
+    "update-content": "cd data/content && git pull && cd ../.."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.0",
+  "dependencies": {
+    "minisearch": "^7.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.9",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.17"
+  }
+}
