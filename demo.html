@@ -330,28 +330,60 @@
       return results;
     }
 
-    // Get available filter options from results
-    function getAvailableFilters(results) {
+    // Get available filter options - for each category, ignore its own selections
+    function getAvailableFilters() {
       const available = {};
+      const query = searchEl.value.trim();
+
+      // Get search results if there's a query
+      let searchMatchIds = null;
+      if (query) {
+        const searchResults = index.search(query, {
+          prefix: true,
+          fuzzy: query.length > 5 ? 0.2 : false
+        });
+        searchMatchIds = new Set(searchResults.map(r => r.id));
+      }
 
       for (const category of CATEGORIES) {
-        const valueCounts = new Map();
+        const valuesWithResults = new Set();
 
-        for (const entity of results) {
+        for (const entity of allEntities) {
+          // Check if entity matches search (if any)
+          if (searchMatchIds && !searchMatchIds.has(entity.id)) continue;
+
+          // Check if entity matches all OTHER categories' filters
+          let matchesOtherFilters = true;
+          for (const otherCat of CATEGORIES) {
+            if (otherCat.id === category.id) continue; // Skip current category
+            const selected = activeFilters[otherCat.id];
+            if (selected.size === 0) continue;
+
+            const entityValues = getEntityValuesForCategory(entity, otherCat);
+            const hasMatch = [...selected].some(v => entityValues.has(v));
+            if (!hasMatch) {
+              matchesOtherFilters = false;
+              break;
+            }
+          }
+
+          if (!matchesOtherFilters) continue;
+
+          // This entity would be in results if we selected any of its values for this category
           const values = getEntityValuesForCategory(entity, category);
-          values.forEach(v => {
-            valueCounts.set(v, (valueCounts.get(v) || 0) + 1);
-          });
+          values.forEach(v => valuesWithResults.add(v));
         }
 
-        if (valueCounts.size > 0) {
-          // Sort by count descending, then alphabetically
-          const sorted = [...valueCounts.entries()]
-            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+        // Also include currently selected values (so user can deselect them)
+        activeFilters[category.id].forEach(v => valuesWithResults.add(v));
+
+        if (valuesWithResults.size > 0) {
+          // Sort alphabetically
+          const sorted = [...valuesWithResults].sort((a, b) => a.localeCompare(b));
 
           available[category.id] = {
             label: category.label,
-            values: sorted
+            values: sorted.map(v => [v]) // Keep same structure but no counts
           };
         }
       }
@@ -382,14 +414,14 @@
         const optionsEl = document.createElement('div');
         optionsEl.className = 'category-options';
 
-        for (const [value, count] of options.values) {
+        for (const [value] of options.values) {
           const optionEl = document.createElement('div');
           optionEl.className = 'filter-option';
           if (activeFilters[category.id].has(value)) {
             optionEl.classList.add('selected');
           }
 
-          optionEl.innerHTML = `${toLabel(value)}<span class="count">${count}</span>`;
+          optionEl.textContent = toLabel(value);
 
           optionEl.addEventListener('click', () => {
             if (activeFilters[category.id].has(value)) {
@@ -453,35 +485,7 @@
     // Main render function
     function render() {
       const results = getResults();
-
-      // For available filters, we need to consider what would be available
-      // if we removed each category's filter (to not hide options you've selected)
-      const resultsForFilters = allEntities.filter(entity => {
-        // Apply all filters EXCEPT check current selections are still shown
-        for (const category of CATEGORIES) {
-          const selected = activeFilters[category.id];
-          if (selected.size === 0) continue;
-
-          const entityValues = getEntityValuesForCategory(entity, category);
-          const hasMatch = [...selected].some(v => entityValues.has(v));
-          if (!hasMatch) return false;
-        }
-
-        // Also apply search if present
-        if (searchEl.value.trim()) {
-          const searchResults = index.search(searchEl.value.trim(), {
-            prefix: true,
-            fuzzy: searchEl.value.trim().length > 5 ? 0.2 : false
-          });
-          if (!searchResults.some(r => r.id === entity.id)) {
-            return false;
-          }
-        }
-
-        return true;
-      });
-
-      const available = getAvailableFilters(resultsForFilters);
+      const available = getAvailableFilters();
 
       renderFilters(available);
       renderResults(results);
