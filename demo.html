@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Search Demo</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    input {
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 18px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      outline: none;
+    }
+    input:focus { border-color: #007aff; }
+    .results { margin-top: 16px; }
+    .result {
+      background: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      border: 1px solid #eee;
+    }
+    .result-name { font-weight: 600; margin-bottom: 4px; }
+    .result-type {
+      display: inline-block;
+      font-size: 11px;
+      background: #e0e0e0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 8px;
+      text-transform: uppercase;
+    }
+    .result-description { color: #666; font-size: 14px; }
+    .result-score { color: #999; font-size: 12px; margin-top: 4px; }
+    .empty { color: #999; text-align: center; padding: 40px; }
+  </style>
+</head>
+<body>
+  <input type="text" id="search" placeholder="Search..." autofocus>
+  <div class="results" id="results"></div>
+
+  <script type="module">
+    import MiniSearch from 'https://esm.sh/minisearch@7';
+
+    const resultsEl = document.getElementById('results');
+    const searchEl = document.getElementById('search');
+
+    const res = await fetch('./build/search-index.json');
+    const indexData = await res.text();
+    const index = MiniSearch.loadJSON(indexData, {
+      fields: ['name', 'description', 'body', 'aliases', 'tags', 'facetText', 'related']
+    });
+
+    function render(results) {
+      if (!results.length) {
+        resultsEl.innerHTML = '<div class="empty">No results</div>';
+        return;
+      }
+      resultsEl.innerHTML = results.slice(0, 20).map(r => `
+        <div class="result">
+          <div class="result-name">${r.name}<span class="result-type">${r.type}</span></div>
+          <div class="result-description">${r.description || ''}</div>
+          <div class="result-score">Score: ${r.score.toFixed(2)}</div>
+        </div>
+      `).join('');
+    }
+
+    searchEl.addEventListener('input', (e) => {
+      const query = e.target.value.trim();
+      if (!query) {
+        resultsEl.innerHTML = '';
+        return;
+      }
+      // Use prefix for short queries, add fuzzy only for longer ones
+      const results = index.search(query, {
+        prefix: true,
+        fuzzy: query.length > 5 ? 0.2 : false,
+        boost: { name: 10, aliases: 5, related: 3, tags: 2, description: 1, facetText: 0.5, body: 0.1 }
+      });
+      render(results);
+    });
+  </script>
+</body>
+</html>
