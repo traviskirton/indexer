@@ -36,31 +36,111 @@ function facetsToText(facets?: Facets): string {
   return values.join(" ");
 }
 
-/** Resolve relationship targets to entity names */
-function resolveRelatedNames(
+/** 2-hop relationship resolution result */
+interface ResolvedRelationships {
+  names: string[];      // All related entity names (2 hops)
+  facets: Facets;       // Inherited facets from related entities
+}
+
+/** Entity types that should inherit facets from related movies/books */
+const TYPES_THAT_INHERIT_FACETS = new Set([
+  "character",
+  "item",
+  "vehicle",
+  "location",
+]);
+
+/** Entity types that provide facets to inherit */
+const TYPES_THAT_PROVIDE_FACETS = new Set(["movie", "book"]);
+
+/** Resolve relationships up to 2 hops deep */
+function resolveRelationships(
   entity: Entity,
   entityMap: Map<string, Entity>
-): string {
-  if (!entity.relationships) return "";
+): ResolvedRelationships {
+  const names = new Set<string>();
+  const inheritedFacets: Facets = {};
 
-  const names = entity.relationships
-    .map((rel) => entityMap.get(rel.target)?.name)
-    .filter((name): name is string => Boolean(name));
+  if (!entity.relationships) {
+    return { names: [], facets: {} };
+  }
 
-  // Deduplicate names
-  return [...new Set(names)].join(" ");
+  // Should this entity type inherit facets?
+  const shouldInheritFacets = TYPES_THAT_INHERIT_FACETS.has(entity.type);
+
+  // Hop 1: Direct relationships
+  for (const rel of entity.relationships) {
+    const hop1Entity = entityMap.get(rel.target);
+    if (!hop1Entity) continue;
+
+    names.add(hop1Entity.name);
+
+    // Only inherit facets if:
+    // 1. This entity type should inherit (character, item, etc.)
+    // 2. The related entity provides facets (movie, book)
+    if (
+      shouldInheritFacets &&
+      TYPES_THAT_PROVIDE_FACETS.has(hop1Entity.type) &&
+      hop1Entity.facets
+    ) {
+      mergeFacets(inheritedFacets, hop1Entity.facets);
+    }
+
+    // Hop 2: Relationships of related entities
+    if (hop1Entity.relationships) {
+      for (const rel2 of hop1Entity.relationships) {
+        const hop2Entity = entityMap.get(rel2.target);
+        if (!hop2Entity) continue;
+
+        // Don't loop back to the original entity
+        if (hop2Entity.id === entity.id) continue;
+
+        names.add(hop2Entity.name);
+      }
+    }
+  }
+
+  return {
+    names: [...names],
+    facets: inheritedFacets,
+  };
+}
+
+/** Merge source facets into target (mutates target) */
+function mergeFacets(target: Facets, source: Facets): void {
+  for (const [key, value] of Object.entries(source)) {
+    if (value === undefined || value === null) continue;
+
+    const existing = target[key];
+    if (existing === undefined) {
+      // Copy value (arrays need to be cloned)
+      target[key] = Array.isArray(value) ? [...value] : value;
+    } else if (Array.isArray(existing) && Array.isArray(value)) {
+      // Merge arrays, deduplicate
+      const merged = new Set([...existing, ...value]);
+      target[key] = [...merged];
+    }
+    // For non-array values, keep the original (don't overwrite)
+  }
 }
 
 function entityToDocument(
   entity: Entity,
-  entityMap: Map<string, Entity>
+  entityMap: Map<string, Entity>,
+  resolved: ResolvedRelationships
 ): SearchDocument {
   const body =
     entity.content?.map((section) => section.body).join("\n\n") ?? "";
   const aliases = entity.aliases?.join(" ") ?? "";
   const tags = entity.tags?.join(" ") ?? "";
-  const facetText = facetsToText(entity.facets);
-  const related = resolveRelatedNames(entity, entityMap);
+
+  // Use pre-resolved relationships
+  const related = resolved.names.join(" ");
+
+  // Combine entity's own facets with inherited facets for search
+  const ownFacetText = facetsToText(entity.facets);
+  const inheritedFacetText = facetsToText(resolved.facets);
+  const facetText = [ownFacetText, inheritedFacetText].filter(Boolean).join(" ");
 
   return {
     id: entity.id,
@@ -107,12 +187,19 @@ async function buildIndex() {
     },
   });
 
-  console.log("Building documents...");
+  console.log("Building documents with 2-hop resolution...");
   const documents: IndexedDocument[] = entities.map((entity) => {
-    const doc = entityToDocument(entity, entityMap);
+    // Resolve relationships once, use for both search and filtering
+    const resolved = resolveRelationships(entity, entityMap);
+    const doc = entityToDocument(entity, entityMap, resolved);
+
+    // Merge entity's own facets with inherited facets for filtering
+    const mergedFacets: Facets = { ...entity.facets };
+    mergeFacets(mergedFacets, resolved.facets);
+
     return {
       ...doc,
-      facets: entity.facets,
+      facets: mergedFacets,
       tagsArray: entity.tags,
     };
   });

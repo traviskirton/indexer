@@ -80,6 +80,20 @@
       border-color: #007aff;
       color: white;
     }
+    .filter-option.modifier-not {
+      background: #ff3b30;
+      border-color: #ff3b30;
+      color: white;
+    }
+    .filter-option.modifier-must {
+      background: #34c759;
+      border-color: #34c759;
+      color: white;
+    }
+    .filter-option .modifier-prefix {
+      font-weight: bold;
+      margin-right: 2px;
+    }
     .filter-option .count {
       margin-left: 4px;
       opacity: 0.7;
@@ -208,10 +222,20 @@
       return str.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     }
 
+    // Modifier types
+    const MODIFIER = {
+      OR: 'or',     // Default: include in union
+      NOT: 'not',   // Exclude these
+      MUST: 'must'  // Must have (intersection)
+    };
+
+    // Modifier cycle order: or -> not -> must -> or
+    const MODIFIER_CYCLE = [MODIFIER.OR, MODIFIER.NOT, MODIFIER.MUST];
+
     // State
     let index = null;
     let allEntities = [];
-    let activeFilters = {}; // { categoryId: Set of selected values }
+    let activeFilters = {}; // { categoryId: Map<value, modifier> }
 
     // DOM elements
     const searchEl = document.getElementById('search');
@@ -244,9 +268,9 @@
         }
       });
 
-      // Initialize empty filters
+      // Initialize empty filters (Maps to store value -> modifier)
       CATEGORIES.forEach(cat => {
-        activeFilters[cat.id] = new Set();
+        activeFilters[cat.id] = new Map();
       });
 
       render();
@@ -284,12 +308,37 @@
     // Check if entity matches all active filters
     function entityMatchesFilters(entity) {
       for (const category of CATEGORIES) {
-        const selected = activeFilters[category.id];
-        if (selected.size === 0) continue;
+        const filters = activeFilters[category.id];
+        if (filters.size === 0) continue;
 
         const entityValues = getEntityValuesForCategory(entity, category);
-        const hasMatch = [...selected].some(v => entityValues.has(v));
-        if (!hasMatch) return false;
+
+        // Group filters by modifier
+        const orValues = [];
+        const notValues = [];
+        const mustValues = [];
+
+        for (const [value, modifier] of filters) {
+          if (modifier === MODIFIER.OR) orValues.push(value);
+          else if (modifier === MODIFIER.NOT) notValues.push(value);
+          else if (modifier === MODIFIER.MUST) mustValues.push(value);
+        }
+
+        // NOT: entity must not have any of these
+        for (const v of notValues) {
+          if (entityValues.has(v)) return false;
+        }
+
+        // MUST: entity must have ALL of these
+        for (const v of mustValues) {
+          if (!entityValues.has(v)) return false;
+        }
+
+        // OR: entity must have at least one (if there are OR values and no MUST values matched)
+        if (orValues.length > 0 && mustValues.length === 0) {
+          const hasOrMatch = orValues.some(v => entityValues.has(v));
+          if (!hasOrMatch) return false;
+        }
       }
       return true;
     }
@@ -330,7 +379,50 @@
       return results;
     }
 
-    // Get available filter options - for each category, ignore its own selections
+    // Check if entity matches filters for a specific category (used for available filter calculation)
+    function entityMatchesCategoryFilters(entity, category) {
+      const filters = activeFilters[category.id];
+      if (filters.size === 0) return true;
+
+      const entityValues = getEntityValuesForCategory(entity, category);
+
+      const orValues = [];
+      const notValues = [];
+      const mustValues = [];
+
+      for (const [value, modifier] of filters) {
+        if (modifier === MODIFIER.OR) orValues.push(value);
+        else if (modifier === MODIFIER.NOT) notValues.push(value);
+        else if (modifier === MODIFIER.MUST) mustValues.push(value);
+      }
+
+      // NOT check
+      for (const v of notValues) {
+        if (entityValues.has(v)) return false;
+      }
+
+      // MUST check
+      for (const v of mustValues) {
+        if (!entityValues.has(v)) return false;
+      }
+
+      // OR check
+      if (orValues.length > 0 && mustValues.length === 0) {
+        if (!orValues.some(v => entityValues.has(v))) return false;
+      }
+
+      return true;
+    }
+
+    // Check if category has any MUST modifiers
+    function categoryHasMust(categoryId) {
+      for (const [, modifier] of activeFilters[categoryId]) {
+        if (modifier === MODIFIER.MUST) return true;
+      }
+      return false;
+    }
+
+    // Get available filter options
     function getAvailableFilters() {
       const available = {};
       const query = searchEl.value.trim();
@@ -347,6 +439,7 @@
 
       for (const category of CATEGORIES) {
         const valuesWithResults = new Set();
+        const hasMustInCategory = categoryHasMust(category.id);
 
         for (const entity of allEntities) {
           // Check if entity matches search (if any)
@@ -355,13 +448,8 @@
           // Check if entity matches all OTHER categories' filters
           let matchesOtherFilters = true;
           for (const otherCat of CATEGORIES) {
-            if (otherCat.id === category.id) continue; // Skip current category
-            const selected = activeFilters[otherCat.id];
-            if (selected.size === 0) continue;
-
-            const entityValues = getEntityValuesForCategory(entity, otherCat);
-            const hasMatch = [...selected].some(v => entityValues.has(v));
-            if (!hasMatch) {
+            if (otherCat.id === category.id) continue;
+            if (!entityMatchesCategoryFilters(entity, otherCat)) {
               matchesOtherFilters = false;
               break;
             }
@@ -369,13 +457,21 @@
 
           if (!matchesOtherFilters) continue;
 
+          // For MUST mode: also check if entity matches current category's MUST/NOT filters
+          // This narrows down options to only compatible values
+          if (hasMustInCategory) {
+            if (!entityMatchesCategoryFilters(entity, category)) continue;
+          }
+
           // This entity would be in results if we selected any of its values for this category
           const values = getEntityValuesForCategory(entity, category);
           values.forEach(v => valuesWithResults.add(v));
         }
 
-        // Also include currently selected values (so user can deselect them)
-        activeFilters[category.id].forEach(v => valuesWithResults.add(v));
+        // Always include currently selected values (so user can deselect/modify them)
+        for (const [v] of activeFilters[category.id]) {
+          valuesWithResults.add(v);
+        }
 
         if (valuesWithResults.size > 0) {
           // Sort alphabetically
@@ -383,7 +479,7 @@
 
           available[category.id] = {
             label: category.label,
-            values: sorted.map(v => [v]) // Keep same structure but no counts
+            values: sorted.map(v => [v])
           };
         }
       }
@@ -417,17 +513,52 @@
         for (const [value] of options.values) {
           const optionEl = document.createElement('div');
           optionEl.className = 'filter-option';
-          if (activeFilters[category.id].has(value)) {
+
+          const currentModifier = activeFilters[category.id].get(value);
+          const isSelected = currentModifier !== undefined;
+
+          if (isSelected) {
             optionEl.classList.add('selected');
+            if (currentModifier === MODIFIER.NOT) {
+              optionEl.classList.remove('selected');
+              optionEl.classList.add('modifier-not');
+            } else if (currentModifier === MODIFIER.MUST) {
+              optionEl.classList.remove('selected');
+              optionEl.classList.add('modifier-must');
+            }
           }
 
-          optionEl.textContent = toLabel(value);
+          // Build label with modifier prefix
+          let label = toLabel(value);
+          if (currentModifier === MODIFIER.NOT) {
+            label = '! ' + label;
+          } else if (currentModifier === MODIFIER.MUST) {
+            label = '+ ' + label;
+          }
+          optionEl.textContent = label;
 
-          optionEl.addEventListener('click', () => {
-            if (activeFilters[category.id].has(value)) {
-              activeFilters[category.id].delete(value);
+          // Click handler
+          optionEl.addEventListener('click', (e) => {
+            e.preventDefault();
+            const useModifier = e.altKey || e.metaKey; // Option or Cmd key
+            if (useModifier) {
+              // Option+click: cycle modifier
+              if (!isSelected) {
+                // Not selected yet, add with OR
+                activeFilters[category.id].set(value, MODIFIER.OR);
+              } else {
+                // Cycle: or -> not -> must -> or
+                const currentIndex = MODIFIER_CYCLE.indexOf(currentModifier);
+                const nextIndex = (currentIndex + 1) % MODIFIER_CYCLE.length;
+                activeFilters[category.id].set(value, MODIFIER_CYCLE[nextIndex]);
+              }
             } else {
-              activeFilters[category.id].add(value);
+              // Regular click: toggle selection
+              if (isSelected) {
+                activeFilters[category.id].delete(value);
+              } else {
+                activeFilters[category.id].set(value, MODIFIER.OR);
+              }
             }
             render();
           });
@@ -496,7 +627,7 @@
 
     clearFiltersEl.addEventListener('click', () => {
       CATEGORIES.forEach(cat => {
-        activeFilters[cat.id].clear();
+        activeFilters[cat.id] = new Map();
       });
       render();
     });
