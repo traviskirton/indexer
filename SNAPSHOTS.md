@@ -18,6 +18,14 @@ npm run build
 
 ---
 
+## v1-simple-search
+
+**Simple Search Demo**
+
+Single search field centered on page with results underneath. No filters, no facets. Basic text search with fuzzy matching and prefix support.
+
+---
+
 ## v2-faceted-features
 
 **Faceted Search Demo**
