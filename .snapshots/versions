@@ -21,3 +21,17 @@ Two-column UI with dynamic filters. Left panel has search box and filter categor
 Limitations:
 - 1-hop relationship resolution only (characters don't inherit director names)
 - No facet inheritance (characters don't inherit genre from movies)
+
+---
+
+## v3-filter-modifiers
+
+**Filter Modifiers with 2-Hop Resolution**
+
+- 2-hop relationship resolution: characters inherit names from movies and people (directors, etc.)
+- Selective facet inheritance: characters/items/vehicles/locations inherit genre/era/tone from movies
+- Filter modifier system with Option+click cycling:
+  - `[tag]` (blue) = OR (default, broadens results)
+  - `[! tag]` (red) = NOT (excludes)
+  - `[+ tag]` (green) = MUST (narrows to intersection)
+- MUST mode narrows visible filter options to compatible values
