@@ -1,20 +1,6 @@
 # Snapshots
 
-Available versioned snapshots of the indexer. To switch to a snapshot:
-
-```bash
-git checkout <tag>
-git submodule update
-npm run build
-```
-
-To return to latest:
-
-```bash
-git checkout main
-git submodule update
-npm run build
-```
+To switch: `snap <tag>`
 
 ---
 
