@@ -5,90 +5,500 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Search Demo</title>
   <style>
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 20px;
       background: #f5f5f5;
+      color: #333;
     }
-    input {
+
+    .container {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 100vh;
+    }
+
+    /* Left Panel - Filters */
+    .filters-panel {
+      background: white;
+      border-right: 1px solid #e0e0e0;
+      padding: 16px;
+      overflow-y: auto;
+      height: 100vh;
+      position: sticky;
+      top: 0;
+    }
+
+    .search-box {
       width: 100%;
-      padding: 12px 16px;
-      font-size: 18px;
+      padding: 10px 12px;
+      font-size: 15px;
       border: 1px solid #ddd;
-      border-radius: 8px;
+      border-radius: 6px;
       outline: none;
+      margin-bottom: 20px;
     }
-    input:focus { border-color: #007aff; }
-    .results { margin-top: 16px; }
+    .search-box:focus { border-color: #007aff; }
+
+    .category {
+      margin-bottom: 20px;
+    }
+
+    .category-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: #666;
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .category-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .filter-option {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      font-size: 13px;
+      background: #f0f0f0;
+      border: 1px solid #e0e0e0;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .filter-option:hover {
+      background: #e8e8e8;
+    }
+    .filter-option.selected {
+      background: #007aff;
+      border-color: #007aff;
+      color: white;
+    }
+    .filter-option .count {
+      margin-left: 4px;
+      opacity: 0.7;
+      font-size: 11px;
+    }
+
+    .clear-filters {
+      font-size: 12px;
+      color: #007aff;
+      cursor: pointer;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .clear-filters:hover { text-decoration: underline; }
+    .clear-filters.visible { display: block; }
+
+    /* Right Panel - Results */
+    .results-panel {
+      padding: 16px 24px;
+      overflow-y: auto;
+    }
+
+    .results-header {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 16px;
+    }
+
     .result {
       background: white;
-      padding: 12px 16px;
+      padding: 14px 16px;
       border-radius: 8px;
-      margin-bottom: 8px;
-      border: 1px solid #eee;
+      margin-bottom: 10px;
+      border: 1px solid #e8e8e8;
     }
-    .result-name { font-weight: 600; margin-bottom: 4px; }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+
+    .result-name {
+      font-weight: 600;
+      font-size: 15px;
+    }
+
     .result-type {
-      display: inline-block;
-      font-size: 11px;
+      font-size: 10px;
       background: #e0e0e0;
-      padding: 2px 6px;
+      padding: 2px 8px;
       border-radius: 4px;
-      margin-left: 8px;
       text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
-    .result-description { color: #666; font-size: 14px; }
-    .result-score { color: #999; font-size: 12px; margin-top: 4px; }
-    .empty { color: #999; text-align: center; padding: 40px; }
+
+    .result-description {
+      color: #666;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .result-meta {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .result-tag {
+      font-size: 11px;
+      background: #f5f5f5;
+      padding: 2px 6px;
+      border-radius: 3px;
+      color: #666;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: #999;
+      padding: 60px 20px;
+    }
+
+    .loading {
+      text-align: center;
+      color: #999;
+      padding: 60px 20px;
+    }
   </style>
 </head>
 <body>
-  <input type="text" id="search" placeholder="Search..." autofocus>
-  <div class="results" id="results"></div>
+  <div class="container">
+    <div class="filters-panel">
+      <input type="text" class="search-box" id="search" placeholder="Search..." autofocus>
+      <div class="clear-filters" id="clearFilters">Clear all filters</div>
+      <div id="filters"></div>
+    </div>
+    <div class="results-panel">
+      <div class="results-header" id="resultsHeader"></div>
+      <div id="results"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
 
   <script type="module">
     import MiniSearch from 'https://esm.sh/minisearch@7';
 
-    const resultsEl = document.getElementById('results');
-    const searchEl = document.getElementById('search');
+    // Category definitions
+    const CATEGORIES = [
+      { id: 'type', label: 'Type', source: 'type' },
+      { id: 'genre', label: 'Genre', source: 'facets', key: 'genre' },
+      { id: 'era', label: 'Era', source: 'facets', key: 'era', altKey: 'active-era' },
+      { id: 'tone', label: 'Tone', source: 'facets', key: 'tone' },
+      { id: 'morality', label: 'Morality', source: 'facets', key: 'morality' },
+      { id: 'archetype', label: 'Archetype', source: 'facets', key: 'archetype' },
+      { id: 'role', label: 'Role', source: 'tags', values: ['spy', 'detective', 'assassin', 'thief', 'mobster', 'gangster', 'criminal', 'soldier', 'warrior', 'wizard', 'witch', 'villain', 'hero', 'butler', 'agent', 'operative', 'investigator', 'vigilante', 'mentor', 'sidekick', 'henchman', 'mastermind', 'informant', 'con-artist', 'hitman', 'double-agent', 'femme-fatale'] },
+      { id: 'profession', label: 'Profession', source: 'facets', key: 'profession' },
+      { id: 'reality', label: 'Reality', source: 'facets', key: 'reality' },
+      { id: 'locationType', label: 'Location Type', source: 'facets', key: 'location-type' },
+      { id: 'franchise', label: 'Franchise', source: 'tags', values: ['batman', 'gotham', 'dc-universe', 'dark-knight', 'james-bond', '007', 'back-to-the-future', 'hill-valley', 'the-godfather', 'corleone', 'middle-earth', 'lord-of-the-rings', 'the-hobbit', 'foundation', 'discworld', 'sherlock-holmes', 'neuromancer', 'inception', 'tenet', 'interstellar', 'the-prestige', 'oppenheimer', 'christopher-nolan'] },
+    ];
 
-    const res = await fetch('./build/search-index.json');
-    const indexData = await res.text();
-    const index = MiniSearch.loadJSON(indexData, {
-      fields: ['name', 'description', 'body', 'aliases', 'tags', 'facetText', 'related']
-    });
-
-    function render(results) {
-      if (!results.length) {
-        resultsEl.innerHTML = '<div class="empty">No results</div>';
-        return;
-      }
-      resultsEl.innerHTML = results.slice(0, 20).map(r => `
-        <div class="result">
-          <div class="result-name">${r.name}<span class="result-type">${r.type}</span></div>
-          <div class="result-description">${r.description || ''}</div>
-          <div class="result-score">Score: ${r.score.toFixed(2)}</div>
-        </div>
-      `).join('');
+    // Convert kebab-case to Title Case
+    function toLabel(str) {
+      if (!str) return '';
+      return str.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     }
 
-    searchEl.addEventListener('input', (e) => {
-      const query = e.target.value.trim();
-      if (!query) {
-        resultsEl.innerHTML = '';
+    // State
+    let index = null;
+    let allEntities = [];
+    let activeFilters = {}; // { categoryId: Set of selected values }
+
+    // DOM elements
+    const searchEl = document.getElementById('search');
+    const filtersEl = document.getElementById('filters');
+    const resultsEl = document.getElementById('results');
+    const resultsHeaderEl = document.getElementById('resultsHeader');
+    const clearFiltersEl = document.getElementById('clearFilters');
+
+    // Initialize
+    async function init() {
+      const res = await fetch('./build/search-index.json');
+      const indexData = await res.text();
+      index = MiniSearch.loadJSON(indexData, {
+        fields: ['name', 'description', 'body', 'aliases', 'tags', 'facetText', 'related']
+      });
+
+      // Get all entities from index
+      allEntities = [];
+      index._documentIds.forEach((_, docId) => {
+        const stored = index._storedFields.get(docId);
+        if (stored) {
+          allEntities.push({
+            id: stored.id,
+            type: stored.type,
+            name: stored.name,
+            description: stored.description,
+            facets: stored.facets || {},
+            tagsArray: stored.tagsArray || []
+          });
+        }
+      });
+
+      // Initialize empty filters
+      CATEGORIES.forEach(cat => {
+        activeFilters[cat.id] = new Set();
+      });
+
+      render();
+    }
+
+    // Get values for a category from an entity
+    function getEntityValuesForCategory(entity, category) {
+      const values = new Set();
+
+      if (category.source === 'type') {
+        if (entity.type) values.add(entity.type);
+      } else if (category.source === 'facets') {
+        const facetVal = entity.facets?.[category.key];
+        const altVal = category.altKey ? entity.facets?.[category.altKey] : null;
+
+        [facetVal, altVal].forEach(val => {
+          if (Array.isArray(val)) {
+            val.forEach(v => values.add(v));
+          } else if (val) {
+            values.add(val);
+          }
+        });
+      } else if (category.source === 'tags') {
+        const tags = entity.tagsArray || [];
+        tags.forEach(tag => {
+          if (category.values.includes(tag)) {
+            values.add(tag);
+          }
+        });
+      }
+
+      return values;
+    }
+
+    // Check if entity matches all active filters
+    function entityMatchesFilters(entity) {
+      for (const category of CATEGORIES) {
+        const selected = activeFilters[category.id];
+        if (selected.size === 0) continue;
+
+        const entityValues = getEntityValuesForCategory(entity, category);
+        const hasMatch = [...selected].some(v => entityValues.has(v));
+        if (!hasMatch) return false;
+      }
+      return true;
+    }
+
+    // Get current results based on search + filters
+    function getResults() {
+      const query = searchEl.value.trim();
+      let results;
+
+      if (query) {
+        // Search with MiniSearch
+        const searchResults = index.search(query, {
+          prefix: true,
+          fuzzy: query.length > 5 ? 0.2 : false,
+          boost: { name: 10, aliases: 5, related: 3, tags: 2, description: 1, facetText: 0.5, body: 0.1 }
+        });
+
+        // Map to entities with scores
+        results = searchResults.map(r => {
+          const entity = allEntities.find(e => e.id === r.id);
+          return entity ? { ...entity, score: r.score } : null;
+        }).filter(Boolean);
+      } else {
+        // No search query - return all entities
+        results = allEntities.map(e => ({ ...e, score: 0 }));
+      }
+
+      // Apply filters
+      results = results.filter(entityMatchesFilters);
+
+      // Sort by score (if searched) or name
+      if (query) {
+        results.sort((a, b) => b.score - a.score);
+      } else {
+        results.sort((a, b) => a.name.localeCompare(b.name));
+      }
+
+      return results;
+    }
+
+    // Get available filter options from results
+    function getAvailableFilters(results) {
+      const available = {};
+
+      for (const category of CATEGORIES) {
+        const valueCounts = new Map();
+
+        for (const entity of results) {
+          const values = getEntityValuesForCategory(entity, category);
+          values.forEach(v => {
+            valueCounts.set(v, (valueCounts.get(v) || 0) + 1);
+          });
+        }
+
+        if (valueCounts.size > 0) {
+          // Sort by count descending, then alphabetically
+          const sorted = [...valueCounts.entries()]
+            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+          available[category.id] = {
+            label: category.label,
+            values: sorted
+          };
+        }
+      }
+
+      return available;
+    }
+
+    // Render filters
+    function renderFilters(available) {
+      filtersEl.innerHTML = '';
+
+      // Check if any filters are active
+      const hasActiveFilters = CATEGORIES.some(cat => activeFilters[cat.id].size > 0);
+      clearFiltersEl.classList.toggle('visible', hasActiveFilters);
+
+      for (const category of CATEGORIES) {
+        const options = available[category.id];
+        if (!options) continue; // Hide category if no options
+
+        const categoryEl = document.createElement('div');
+        categoryEl.className = 'category';
+
+        const titleEl = document.createElement('div');
+        titleEl.className = 'category-title';
+        titleEl.textContent = options.label;
+        categoryEl.appendChild(titleEl);
+
+        const optionsEl = document.createElement('div');
+        optionsEl.className = 'category-options';
+
+        for (const [value, count] of options.values) {
+          const optionEl = document.createElement('div');
+          optionEl.className = 'filter-option';
+          if (activeFilters[category.id].has(value)) {
+            optionEl.classList.add('selected');
+          }
+
+          optionEl.innerHTML = `${toLabel(value)}<span class="count">${count}</span>`;
+
+          optionEl.addEventListener('click', () => {
+            if (activeFilters[category.id].has(value)) {
+              activeFilters[category.id].delete(value);
+            } else {
+              activeFilters[category.id].add(value);
+            }
+            render();
+          });
+
+          optionsEl.appendChild(optionEl);
+        }
+
+        categoryEl.appendChild(optionsEl);
+        filtersEl.appendChild(categoryEl);
+      }
+    }
+
+    // Render results
+    function renderResults(results) {
+      const query = searchEl.value.trim();
+
+      resultsHeaderEl.textContent = `${results.length} result${results.length !== 1 ? 's' : ''}`;
+
+      if (results.length === 0) {
+        resultsEl.innerHTML = '<div class="empty-state">No results found</div>';
         return;
       }
-      // Use prefix for short queries, add fuzzy only for longer ones
-      const results = index.search(query, {
-        prefix: true,
-        fuzzy: query.length > 5 ? 0.2 : false,
-        boost: { name: 10, aliases: 5, related: 3, tags: 2, description: 1, facetText: 0.5, body: 0.1 }
+
+      resultsEl.innerHTML = results.slice(0, 50).map(entity => {
+        // Collect display tags (facet values + tags)
+        const displayTags = [];
+        if (entity.facets) {
+          ['genre', 'morality', 'archetype', 'era', 'tone', 'profession', 'reality'].forEach(key => {
+            const val = entity.facets[key];
+            if (Array.isArray(val)) {
+              val.forEach(v => displayTags.push(toLabel(v)));
+            } else if (val) {
+              displayTags.push(toLabel(val));
+            }
+          });
+        }
+
+        const tagsHtml = displayTags.slice(0, 5).map(t =>
+          `<span class="result-tag">${t}</span>`
+        ).join('');
+
+        return `
+          <div class="result">
+            <div class="result-header">
+              <span class="result-name">${entity.name}</span>
+              <span class="result-type">${entity.type}</span>
+            </div>
+            <div class="result-description">${entity.description || ''}</div>
+            ${tagsHtml ? `<div class="result-meta">${tagsHtml}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Main render function
+    function render() {
+      const results = getResults();
+
+      // For available filters, we need to consider what would be available
+      // if we removed each category's filter (to not hide options you've selected)
+      const resultsForFilters = allEntities.filter(entity => {
+        // Apply all filters EXCEPT check current selections are still shown
+        for (const category of CATEGORIES) {
+          const selected = activeFilters[category.id];
+          if (selected.size === 0) continue;
+
+          const entityValues = getEntityValuesForCategory(entity, category);
+          const hasMatch = [...selected].some(v => entityValues.has(v));
+          if (!hasMatch) return false;
+        }
+
+        // Also apply search if present
+        if (searchEl.value.trim()) {
+          const searchResults = index.search(searchEl.value.trim(), {
+            prefix: true,
+            fuzzy: searchEl.value.trim().length > 5 ? 0.2 : false
+          });
+          if (!searchResults.some(r => r.id === entity.id)) {
+            return false;
+          }
+        }
+
+        return true;
       });
-      render(results);
+
+      const available = getAvailableFilters(resultsForFilters);
+
+      renderFilters(available);
+      renderResults(results);
+    }
+
+    // Event listeners
+    searchEl.addEventListener('input', () => render());
+
+    clearFiltersEl.addEventListener('click', () => {
+      CATEGORIES.forEach(cat => {
+        activeFilters[cat.id].clear();
+      });
+      render();
     });
+
+    // Start
+    init();
   </script>
 </body>
 </html>
