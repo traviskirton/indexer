@@ -11,6 +11,12 @@ export interface Relationship {
 export type FacetValue = string | string[] | boolean;
 export type Facets = Record<string, FacetValue>;
 
+export interface Link {
+  url: string;
+  title: string;
+  type: string;
+}
+
 export interface Entity {
   id: string;
   type: string;
@@ -22,6 +28,7 @@ export interface Entity {
   properties?: Record<string, unknown>;
   tags?: string[];
   facets?: Facets;
+  links?: Link[];
 }
 
 /** Document shape indexed by MiniSearch */
@@ -45,4 +52,5 @@ export interface SearchResult {
   description: string;
   facets?: Facets; // structured facets for filtering
   tags?: string[]; // original tags array for filtering
+  links?: Link[]; // external links
 }

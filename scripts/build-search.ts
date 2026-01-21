@@ -1,7 +1,7 @@
 import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import MiniSearch from "minisearch";
-import type { Entity, SearchDocument, Facets } from "../src/types.js";
+import type { Entity, SearchDocument, Facets, Link } from "../src/types.js";
 
 const CONTENT_DIR = "data/content/entities";
 const OUTPUT_FILE = "build/search-index.json";
@@ -159,6 +159,7 @@ function entityToDocument(
 interface IndexedDocument extends SearchDocument {
   facets?: Record<string, unknown>;
   tagsArray?: string[];
+  links?: Link[];
 }
 
 async function buildIndex() {
@@ -171,7 +172,7 @@ async function buildIndex() {
 
   const miniSearch = new MiniSearch<IndexedDocument>({
     fields: ["name", "description", "body", "aliases", "tags", "facetText", "related"],
-    storeFields: ["id", "type", "name", "description", "facets", "tagsArray"],
+    storeFields: ["id", "type", "name", "description", "facets", "tagsArray", "links"],
     searchOptions: {
       boost: {
         name: 3,
@@ -201,6 +202,7 @@ async function buildIndex() {
       ...doc,
       facets: mergedFacets,
       tagsArray: entity.tags,
+      links: entity.links,
     };
   });
 
