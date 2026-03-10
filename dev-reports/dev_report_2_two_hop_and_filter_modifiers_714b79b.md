@@ -1,6 +1,6 @@
 # Development Report: 2-Hop Resolution & Filter Modifiers
 
-**Commit:** pending
+**Commit:** 714b79b
 **Phase:** Search intelligence
 **Breakthrough:** no
 
