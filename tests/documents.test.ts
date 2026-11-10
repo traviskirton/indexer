@@ -138,10 +138,10 @@ describe("resolveRelationships", () => {
     expect(names).toEqual(["Inception", "Christopher Nolan", "Totem"]);
   });
 
-  it("lists each related name once", () => {
+  it("skips the entity itself at hop 2", () => {
     const { movie, entityMap } = fixture();
     // hop 1: Nolan, Cobb; hop 2: Tenet (via Nolan), Totem (via Cobb).
-    // Inception itself is reachable through both and is skipped.
+    // Inception is reachable back through both, and is never listed.
     expect(resolveRelationships(movie, entityMap).names).toEqual([
       "Christopher Nolan",
       "Tenet",
@@ -159,7 +159,7 @@ describe("resolveRelationships", () => {
     });
   });
 
-  it("merges facets from several movies and books", () => {
+  it("merges names and facets from several movies and books, listing each name once", () => {
     const { book, entityMap } = fixture();
     const vehicle: Entity = {
       id: "v1",
@@ -171,7 +171,16 @@ describe("resolveRelationships", () => {
         { type: "appears-in", target: book.id },
       ],
     };
-    expect(resolveRelationships(vehicle, entityMap).facets).toEqual({
+    const resolved = resolveRelationships(vehicle, entityMap);
+    // Christopher Nolan is reachable through both Inception and Tenet.
+    expect(resolved.names).toEqual([
+      "Inception",
+      "Christopher Nolan",
+      "Dom Cobb",
+      "Tenet",
+      "Neuromancer",
+    ]);
+    expect(resolved.facets).toEqual({
       genre: ["sci-fi", "thriller", "action", "cyberpunk"],
       era: "2010s",
       canon: true,
