@@ -66,8 +66,10 @@ pnpm test --run   # run once; plain `pnpm test` starts vitest in watch mode
 pnpm exec tsc --noEmit   # type-check scripts/ and src/
 ```
 
-`tests/search.test.ts` checks the built index against the real content. If
-`pnpm build` hasn't been run, that suite fails with `ENOENT`.
+- `tests/documents.test.ts` and `tests/tag-taxonomy.test.ts` are unit tests on
+  small fixtures. They need no build and no content.
+- `tests/search.test.ts` checks the built index against the real content. If
+  `pnpm build` hasn't been run, that suite fails with `ENOENT`.
 
 ## Update the content
 
@@ -84,6 +86,7 @@ pointer if you want to keep it.
 | Path | What it is |
 |------|------------|
 | `scripts/build-search.ts` | Index builder (`pnpm build`) |
+| `src/documents.ts` | Turns an entity into its indexed document: 2-hop relationship names, facet inheritance, text fields |
 | `src/types.ts` | Entity, facet and search-document types |
 | `src/tag-taxonomy.ts` | Parent > child tag taxonomy and helpers (not used by the build) |
 | `tests/` | Vitest suites |
