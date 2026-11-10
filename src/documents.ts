@@ -107,7 +107,6 @@ export function mergeFacets(target: Facets, source: Facets): void {
 
 export function entityToDocument(
   entity: Entity,
-  entityMap: Map<string, Entity>,
   resolved: ResolvedRelationships
 ): SearchDocument {
   const body =
@@ -150,7 +149,7 @@ export function buildIndexedDocument(
 ): IndexedDocument {
   // Resolve relationships once, use for both search and filtering
   const resolved = resolveRelationships(entity, entityMap);
-  const doc = entityToDocument(entity, entityMap, resolved);
+  const doc = entityToDocument(entity, resolved);
 
   // Merge entity's own facets with inherited facets for filtering
   const mergedFacets: Facets = { ...entity.facets };

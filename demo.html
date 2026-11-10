@@ -90,10 +90,6 @@
       border-color: #34c759;
       color: white;
     }
-    .filter-option .modifier-prefix {
-      font-weight: bold;
-      margin-right: 2px;
-    }
     .filter-option .count {
       margin-left: 4px;
       opacity: 0.7;
@@ -573,8 +569,6 @@
 
     // Render results
     function renderResults(results) {
-      const query = searchEl.value.trim();
-
       resultsHeaderEl.textContent = `${results.length} result${results.length !== 1 ? 's' : ''}`;
 
       if (results.length === 0) {

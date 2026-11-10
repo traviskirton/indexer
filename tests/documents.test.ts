@@ -206,7 +206,7 @@ describe("entityToDocument", () => {
       ],
     };
     const resolved = resolveRelationships(entity, entityMap);
-    expect(entityToDocument(entity, entityMap, resolved)).toEqual({
+    expect(entityToDocument(entity, resolved)).toEqual({
       id: "c1",
       type: "character",
       name: "Dom Cobb",
@@ -222,7 +222,7 @@ describe("entityToDocument", () => {
   it("uses empty strings for missing optional fields", () => {
     const entity: Entity = { id: "x", type: "item", name: "Thing" };
     expect(
-      entityToDocument(entity, new Map(), { names: [], facets: {} })
+      entityToDocument(entity, { names: [], facets: {} })
     ).toEqual({
       id: "x",
       type: "item",
