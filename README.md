@@ -23,7 +23,7 @@ search demo that runs on that index.
 
 ## Requirements
 
-- Node.js 20, 22 or 24+ (developed on Node 25)
+- Node.js 20.19+, 22.12+ or 24+ (vitest's vite needs `^20.19.0 || >=22.12.0`; developed on Node 25)
 - pnpm 10 (the version is pinned in `package.json` under `packageManager`)
 - Python 3, only to serve the demo locally
 
