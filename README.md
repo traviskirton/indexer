@@ -2,8 +2,9 @@
 
 Builds a full-text search index from the entity dataset in
 [`traviskirton/content`](https://github.com/traviskirton/content) (movies, books,
-characters, people, locations, items and so on), and ships a single-page faceted
-search demo that runs on that index.
+characters, people, locations, items and so on). The UI that uses the index is
+[`traviskirton/search`](https://github.com/traviskirton/search), which pulls this
+repo in as a submodule.
 
 - **Input:** one JSON file per entity in `data/content/entities/` (the `content`
   repo, pinned as a git submodule).
@@ -15,17 +16,11 @@ search demo that runs on that index.
   relationship hops away, so searching "Nolan" finds his films. Characters, items,
   vehicles and locations also inherit `genre`/`era`/`tone`-style facets from the
   movies and books they relate to.
-- **Demo:** `demo.html` loads the index in the browser and adds dynamic filters
-  (Type, Genre, Era, Tone, Morality, Archetype, Role, Profession, Reality,
-  Location Type, Franchise). Click a filter to toggle it. Option- or Cmd-click
-  cycles it through OR (blue), NOT (red, `!`) and MUST (green, `+`). See
-  `docs/filter-ui-spec.md`.
 
 ## Requirements
 
 - Node.js 20.19+, 22.12+ or 24+ (vitest's vite needs `^20.19.0 || >=22.12.0`; developed on Node 25)
 - pnpm 10 (the version is pinned in `package.json` under `packageManager`)
-- Python 3, only to serve the demo locally
 
 ## Install
 
@@ -45,18 +40,6 @@ pnpm build
 This reads `data/content/entities/*.json` and writes `build/search-index.json`.
 It prints counts by entity type and how many entities have facets, tags and
 relationships. `build/` is git-ignored.
-
-## Run the demo
-
-The demo fetches `./build/search-index.json`, so it has to be served over HTTP.
-Opening the file directly won't work. It also loads MiniSearch from `esm.sh`,
-so it needs an internet connection.
-
-```bash
-pnpm build
-python3 -m http.server 8000 --bind 127.0.0.1
-# open http://127.0.0.1:8000/demo.html
-```
 
 ## Test
 
@@ -90,8 +73,7 @@ pointer if you want to keep it.
 | `src/types.ts` | Entity, facet and search-document types |
 | `src/tag-taxonomy.ts` | Parent > child tag taxonomy and helpers (not used by the build) |
 | `tests/` | Vitest suites |
-| `demo.html` | Faceted search demo |
-| `docs/filter-ui-spec.md` | Filter UI specification |
+| `docs/content-issues.md` | Known problems in the content data |
 | `data/content/` | `content` repo submodule |
 | `.snapshots/` | Snapshot tags (`v1-simple-search`, `v2-faceted-features`, `v3-filter-modifiers`) |
 | `dev-reports/` | Development reports |
