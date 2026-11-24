@@ -16,9 +16,9 @@
     "minisearch": "^7.2.0"
   },
   "devDependencies": {
-    "@types/node": "^25.0.9",
-    "tsx": "^4.21.0",
+    "@types/node": "^25.9.9",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.17"
+    "vitest": "^4.1.12"
   }
 }
